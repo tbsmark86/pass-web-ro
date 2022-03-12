@@ -1,79 +1,116 @@
 import { html, css, LitElement } from 'lit'
-import { customElement, property } from 'lit/decorators.js'
+import { customElement, property, query } from 'lit/decorators.js'
 import * as openpgp from 'openpgp';
 
 /**
- * gpg --output private.pgp --armor --export-secret-key
+ * Dialog to decrypt a single password
  */
-
-
 @customElement('show-pass')
 export class ShowPassElement extends LitElement {
     static styles = css`
 	:host {
+	    width: 0; height: 0;
+	}
+	output {
+	    min-height: 1.1em;
 	    display: block;
-	    border: solid 1px gray;
-	    padding: 16px;
-	    max-width: 800px;
+	    border: 1px solid black;
+	    margin: 0.5em 0;
+	    font-family: monospace;
+	    white-space: pre;
+	    padding: 5px;
 	}
     `
 
     /**
-     * The name to say "Hello" to.
+     * The password name
      */
-    @property()
-    name = 'World'
+    @property() name = '';
 
     /**
-     * The number of times the button has been clicked.
+     * The Encrypted data
      */
-    @property({ type: Number })
-    count = 0
+    @property() encrypted = '';
+
+    /**
+     * The Private Key
+     */
+    @property() privateKey = '';
+
+    @query('#pass')
+    private passEle?: HTMLInputElement;
+    @query('#output')
+    private outputEle?: HTMLOutputElement;
+    @query('dialog')
+    private dialogEle?: HTMLDialogElement;
 
     render() {
-	return html`
-	  <h1>Hello, ${this.name}!</h1>
-	  <button @click=${this._onClick} part="button">
-	    Click Count: ${this.count}
-	  </button>
-	  <input type=password id=pass>
-	  <button @click=${this.decode}>Decode</button>
-	  <slot></slot>
-	`
+	return html`<dialog><form method=dialog>
+	  <h2>${this.name}</h1>
+	  <label>Master Password: <input type=password id=pass></label>
+	    <button type=submit @click=${this.decode}>Decode</button>
+	  <output id=output></output>
+	  <button @click=${this.copy}>Copy&amp;Close</button>
+	  <button @click=${this.close}>Close</button>
+	</form></dialog>`
     }
 
-    private _onClick() {
-	this.count++
+    private async decode(event: Event) {
+	// Docs:  https://github.com/openpgpjs/openpgpjs
+	event.preventDefault();
+	
+	let privateKey;
+	try {
+	    privateKey = await openpgp.decryptKey({
+		privateKey: await openpgp.readPrivateKey({
+		    binaryKey: Uint8Array.from(atob(this.privateKey), c => c.charCodeAt(0))
+		}),
+		passphrase: this.passEle!.value
+	    });
+	} catch(e) {
+	    this.outputEle!.innerText = (e as Error).message;
+	    return;
+	}
+	this.passEle!.value = '';
+
+	let decrypted;
+	try {
+	    const message = await openpgp.readMessage({
+		binaryMessage: Uint8Array.from(atob(this.encrypted), c => c.charCodeAt(0))
+	    });
+	    const res = await openpgp.decrypt({
+		message,
+		decryptionKeys: privateKey
+	    });
+	    decrypted = res.data;
+	} catch(e) {
+	    this.outputEle!.innerText = (e as Error).message;
+	    return;
+	}
+	this.outputEle!.innerText = decrypted;
+	window.setTimeout(() => {
+	    this.outputEle!.innerText = 'Cleared after Timeout'; 
+	}, 30 * 1000);
     }
 
-    foo(): string {
-	return 'foo'
+    private close() {
+	this.outputEle!.innerText = '';
+	// @ts-expect-error missing typeings
+	this.dialogEle.close();
     }
 
-    private async decode() {
-	// Doku:
-	// https://github.com/openpgpjs/openpgpjs
+    private copy() {
+	let text = this.outputEle!.innerText;
+	let lines = text.split('\n');
+	navigator.clipboard.writeText(lines[0])
+	this.close();
+    }
 
-	console.log('decode ...');
-	//  strange vite behaviour: files with "." in the name are ignore :/ that should be document somewhere!
-	const key = await (await fetch('/private')).text(); // .gpg
-	const encrypted = await (await fetch('/wiki')).arrayBuffer(); // .gpg
-	const passphrase = (this.shadowRoot!.getElementById('pass') as HTMLInputElement).value;
-
-	const privateKey = await openpgp.decryptKey({
-	    privateKey: await openpgp.readPrivateKey({ armoredKey: key }),
-	    passphrase
-	});
-
-	const message = await openpgp.readMessage({
-	    binaryMessage: new Uint8Array(encrypted) // parse armored message
-	});
-	const { data: decrypted } = await openpgp.decrypt({
-	    message,
-	    //verificationKeys: publicKey, // optional
-	    decryptionKeys: privateKey
-	});
-	console.log(decrypted); // 'Hello, World!'
+    use(name: string, encrypted: string) {
+	this.name = name;
+	this.encrypted = encrypted;
+	// @ts-expect-error missing typeings
+	this.dialogEle.showModal();
     }
 }
 

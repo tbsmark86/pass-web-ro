@@ -1,5 +1,6 @@
 import { html, LitElement, TemplateResult } from 'lit'
-import { customElement } from 'lit/decorators.js'
+import { customElement, query } from 'lit/decorators.js'
+import type { ShowPassElement } from './show-pass'
 import * as openpgp from 'openpgp';
 
 interface Tree extends Record<string, Tree|string> {};
@@ -14,7 +15,12 @@ export class AppMainElement extends LitElement {
     private dataPass: string = '';
     private msg: string = '';
     private data: Tree = {};
-    private key: string = '';
+    private dialog: ShowPassElement;
+
+    @query('#url')
+    private urlEle?: HTMLInputElement;
+    @query('#password')
+    private passwordEle?: HTMLInputElement;
 
     createRenderRoot() {
 	return this;
@@ -22,14 +28,19 @@ export class AppMainElement extends LitElement {
 
     constructor() {
 	super();
-	this.readConfig();
+	this.dialog = document.querySelector('show-pass') as ShowPassElement;
+	if(!this.dialog) {
+	    this.state = 'error';
+	    this.msg = 'Invalid HTML';
+	} else {
+	    this.readConfig();
+	}
     }
 
     private readConfig() {
 	this.dataURL = window.localStorage.passDataURL;
 	this.dataPass = window.localStorage.passDataPass;
 	this.data = {};
-	this.key = '';
 	if(!this.dataURL || !this.dataPass) {
 	    this.state = 'config-required';
 	} else {
@@ -54,8 +65,8 @@ export class AppMainElement extends LitElement {
     }
 
     private saveConfig() {
-	window.localStorage.passDataURL = (this.querySelector('#url') as HTMLInputElement).value;
-	window.localStorage.passDataPass = (this.querySelector('#password') as HTMLInputElement).value;
+	window.localStorage.passDataURL = this.urlEle?.value;
+	window.localStorage.passDataPass = this.passwordEle?.value;
 	this.readConfig();
 	this.requestUpdate();
     }
@@ -71,7 +82,7 @@ export class AppMainElement extends LitElement {
 	    format: 'utf8'
 	});
 	let data: Record<string, string> = JSON.parse(decrypted);
-	this.key = data._key;
+	this.dialog.privateKey = data._key;
 	delete data._key;
 
 	// convert flat list into a tree
@@ -94,8 +105,6 @@ export class AppMainElement extends LitElement {
 	    cur[lastpart] = value;
 	}
 	this.data = tree;
-	console.log(this.data);
-
     }
 
     render() {
@@ -128,12 +137,25 @@ export class AppMainElement extends LitElement {
 	const itemTemplates = [];
 	for(const [name, value] of Object.entries(tree)) {
 	    if(typeof(value) === 'string') {
-		itemTemplates.push(html`<li data-value=${value}>${name}</li>`);
+		itemTemplates.push(html`<li>
+		    <button @click=${this.onClick} data-value=${value} data-name=${name}>${name}</button>
+		</li>`);
 	    } else {
 		itemTemplates.push(html`<li>${name}${this.renderTree(value)}</li>`);
 	    }
 	}
 	return html`<ul>${itemTemplates}</ul>`;
+    }
+
+    private onClick(event: Event) {
+	const ele = event.currentTarget as HTMLElement;
+	const name = ele.dataset.name;
+	const value = ele.dataset.value;
+	if(!name || !value) {
+	    alert('something went wrong!');
+	    return;
+	}
+	this.dialog.use(name, value);
     }
 }
 
