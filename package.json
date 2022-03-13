@@ -1,7 +1,8 @@
 {
-  "name": "pass.sh-web-ro",
+  "name": "pass-web-ro",
   "private": true,
   "version": "1.0.0",
+  "license": "MIT",
   "main": "dist/my-element.es.js",
   "exports": {
     ".": "./dist/my-element.es.js"
