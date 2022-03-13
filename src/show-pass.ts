@@ -17,7 +17,7 @@ export class ShowPassElement extends LitElement {
 	    border: 1px solid black;
 	    margin: 0.5em 0;
 	    font-family: monospace;
-	    white-space: pre;
+	    white-space: pre-wrap;
 	    padding: 5px;
 	}
     `
@@ -103,6 +103,10 @@ export class ShowPassElement extends LitElement {
 	let text = this.outputEle!.innerText;
 	let lines = text.split('\n');
 	navigator.clipboard.writeText(lines[0])
+	// try to clear clipboard
+	window.setTimeout(() => {
+	    navigator.clipboard.writeText('')
+	}, 30 * 1000);
 	this.close();
     }
 
