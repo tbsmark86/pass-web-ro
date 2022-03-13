@@ -5,6 +5,24 @@ import * as openpgp from 'openpgp';
 
 export interface Tree extends Record<string, Tree|string> {};
 
+async function sha256(message: string) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex;
+}
+
+async function sha1(message: string) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-1', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex;
+}
+
 /**
  * Load the pass dump and renders the content for selection.
  */
@@ -41,7 +59,7 @@ export class AppMainElement extends LitElement {
 	this.dataURL = window.localStorage.passDataURL;
 	this.dataPass = window.localStorage.passDataPass;
 	this.data = {};
-	if(!this.dataURL || !this.dataPass) {
+	if(!this.dataPass) {
 	    this.state = 'config-required';
 	} else {
 	    this.state = 'init';
@@ -72,7 +90,30 @@ export class AppMainElement extends LitElement {
     }
 
     private async loadData() {
-	const encryptedRaw = await (await fetch(this.dataURL)).arrayBuffer();
+	let url;
+	let headers = {};
+	if(this.dataURL) {
+	    // fixed url
+	    url = this.dataURL;
+	} else {
+	    // default url derived from the password.
+	    // Idea:
+	    // * hard to guess filename
+	    // * only get data with password
+	    // * but still hoster does not known the data password
+	    url = new URL(document.location.href);
+	    url.pathname += await sha1(this.dataPass)+'.php';
+	    url = url.toString();
+	    headers = {
+		Authorization: await sha256(this.dataPass)
+	    }
+	}
+
+	const response = await fetch(url, {headers});
+	if(!response.ok) {
+	    throw new Error(`Can't Fetch Data: ${response.statusText}`);
+	}
+	const encryptedRaw = await response.arrayBuffer();
 	const encryptedMessage = await openpgp.readMessage({
 	    binaryMessage: new Uint8Array(encryptedRaw)
 	});
@@ -120,7 +161,7 @@ export class AppMainElement extends LitElement {
 	    `;
 	} else if(this.state === 'error') {
 	    return html`<h1>Error!</h1>
-		${this.msg}
+		${this.msg}<br>
 		<button @click=${this.changeConfig}>Change Config</button>
 	    `;
 	} else {
