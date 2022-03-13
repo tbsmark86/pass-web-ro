@@ -184,3 +184,19 @@ declare global {
 	'app-main': AppMainElement
     }
 }
+
+// --- Service Worker ---
+/*
+//@ts-expect-error plugin handled
+import { registerSW } from 'virtual:pwa-register'
+
+const updateSW = registerSW({
+  onNeedRefresh() {
+    if(confirm('Restart now?')) {
+	updateSW();
+    }
+  },
+  onOfflineReady() {},
+})
+*/
+
