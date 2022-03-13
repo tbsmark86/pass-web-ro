@@ -1,9 +1,9 @@
-import { html, LitElement, TemplateResult } from 'lit'
+import { html, LitElement } from 'lit'
 import { customElement, query } from 'lit/decorators.js'
 import type { ShowPassElement } from './show-pass'
 import * as openpgp from 'openpgp';
 
-interface Tree extends Record<string, Tree|string> {};
+export interface Tree extends Record<string, Tree|string> {};
 
 /**
  * Load the pass dump and renders the content for selection.
@@ -125,36 +125,15 @@ export class AppMainElement extends LitElement {
 	    `;
 	} else {
 	    return html`<h1>Passwords</h1>
-		${this.renderTree(this.data)}
+		<pass-tree .value=${this.data} @select=${this.onSelect}></pass-tree>
 		<button @click=${this.changeConfig}>Change Config</button>
 	    `;
 
 	}
     }
 
-    private renderTree(tree: Tree): TemplateResult
-    {
-	const itemTemplates = [];
-	for(const [name, value] of Object.entries(tree)) {
-	    if(typeof(value) === 'string') {
-		itemTemplates.push(html`<li>
-		    <button @click=${this.onClick} data-value=${value} data-name=${name}>${name}</button>
-		</li>`);
-	    } else {
-		itemTemplates.push(html`<li>${name}${this.renderTree(value)}</li>`);
-	    }
-	}
-	return html`<ul>${itemTemplates}</ul>`;
-    }
-
-    private onClick(event: Event) {
-	const ele = event.currentTarget as HTMLElement;
-	const name = ele.dataset.name;
-	const value = ele.dataset.value;
-	if(!name || !value) {
-	    alert('something went wrong!');
-	    return;
-	}
+    private onSelect(event: CustomEvent) {
+	const {name, value} = event.detail;
 	this.dialog.use(name, value);
     }
 }
